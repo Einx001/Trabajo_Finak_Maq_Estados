@@ -2,8 +2,8 @@
 #include <LiquidCrystal.h>
 #include <Keypad.h>
 #include <EEPROM.h>
-#include "DHTStable.h"
 #include "AsyncTaskLib.h"
+#include <stdio.h>
 
 #define DEBUG(a) Serial.print(millis()); Serial.print(": "); Serial.println(a);
 
@@ -61,16 +61,14 @@ byte umbTempHigh = 30;
 byte umbTempLow = 18;
 int umbLuzHigh = 34;
 int umbLuzLow = 34;
-byte umbTempAlarm  = 40;
 
 // definicion de umbrales por defecto de los sensores
 byte defUmbTempHigh = 30;
 byte defUmbTempLow = 18;
 int defUmbLuz = 34;
 int defUmbLuzLow = 34;
-byte defUmbTempAlarma  = 40;
 
-//variables contraseña
+//variables contraseÃ±a
 char contrasena[4] = {'1', '1', '1', '1'};
 int indice = 0;  // necesaria para contar los dijitos de la clave
 int cursor = 0;    // posicion inicial de la clave en el LCD
@@ -83,7 +81,7 @@ bool auxConfiguracion = true;
 bool auxMonitoreo = true;
 
 unsigned long tiempo = 0;
-byte pos_memoria = 0;
+byte posMemory = 0;
 
 // Definiciones de las tareas asincronas
 AsyncTask asyncTaskTemp(2000, true, read_temperature);
@@ -106,7 +104,6 @@ enum Input{
 };
 Input currentInput;//controlador de entradas
 
-#pragma region metodos_sensores
 //procesador de la funcion entregada por el fotoresistor
 void read_photoresistor(){
   photo_value = analogRead(pin_photo);
@@ -146,11 +143,12 @@ void loop(){
   updateStateMachine();
 }
 
-void updateStateMachine(){// se hace la seleccion de funciones a realizar segun el estado actual y la entrada
+//Funcion que administra los estados de la maquina de estados
+void updateStateMachine(){
   switch (currentState){
-    case estado::estado1Seguridad:  // actualiza el estado de la maquina partiendo desde el estado 1
+    case estado::estado1Seguridad:
         switch (currentInput){
-        case Input::Unknown: Seguridad(); break; // con entrada en vacio, la maquina continua en el estado actual y ejecuta sus funciones
+        case Input::Unknown: Seguridad(); break;
         case Input::reset:
             currentState = estado::estado1Seguridad; 
             auxSeguridad = true;
@@ -175,9 +173,9 @@ void updateStateMachine(){// se hace la seleccion de funciones a realizar segun 
         default: break;
       }
       break;
-    case estado::estado2Configuracion: // actualiza el estado de la maquina partiendo desde el estado 2
+    case estado::estado2Configuracion:
         switch (currentInput){
-          case Input::Unknown: funcion_configuracion(); break; // con entrada en vacio, la maquina continua en el estado actual y ejecuta sus funciones
+          case Input::Unknown: Configuracion(); break;
           case Input::reset:
               currentState = estado::estado1Seguridad; 
               auxSeguridad  = true;
@@ -202,10 +200,10 @@ void updateStateMachine(){// se hace la seleccion de funciones a realizar segun 
           default: break;
         }
        break;
-    case estado::estado3Monitoreo: // actualiza el estado de la maquina partiendo desde el estado 3
+    case estado::estado3Monitoreo:
      switch (currentInput){
-          case Input::Unknown: funcion_monitoreo(); break; // con entrada en vacio, la maquina continua en el estado actual y ejecuta sus funciones
-          case Input::reset: //********** RESET
+          case Input::Unknown: funcion_monitoreo(); break;
+          case Input::reset: 
               currentState = estado::estado1Seguridad; 
               auxMonitoreo = true;
               ContrasenaCorrecta = false;
@@ -230,9 +228,9 @@ void updateStateMachine(){// se hace la seleccion de funciones a realizar segun 
           default: break;
         }
       break;
-    case estado::estado4Alarma: // actualiza el estado de la maquina partiendo desde el estado 4
+    case estado::estado4Alarma:
      switch (currentInput){
-          case Input::Unknown: funcion_alarma(); break; // con entrada en vacio, la maquina continua en el estado actual y ejecuta sus funciones
+          case Input::Unknown: funcion_alarma(); break;
           case Input::reset:
               currentState = estado::estado1Seguridad;
               ContrasenaCorrecta = false;
@@ -263,22 +261,23 @@ void press_key_static(char key){ // este metodo me ejecuta la lectura de la entr
   if (key == '7') {
     lcd.clear();
     lcd.setCursor(0, 0);
-      lcd.print("BACK");
-      Serial.println("BACK");
-      delay(500);
-        currentInput = Input::Backward;
+    lcd.print("BACK");
+    Serial.println("BACK");
+    delay(500);
+    currentInput = Input::Backward;
   } 
-  if (key == '9') {
-     lcd.clear();
+  if (key == '8') {
+    lcd.clear();
     lcd.setCursor(0, 0);
-      lcd.print("RESET");
-      Serial.println("RESET");
-      delay(500);
-       currentInput = Input::reset;
+    lcd.print("RESET");
+    Serial.println("RESET");
+    delay(500);
+    currentInput = Input::reset;
   }
 }
 
-void Seguridad() {// funcion para el estado de seguridad
+//Estado de Seguridad
+void Seguridad() {
   if (auxSeguridad){
     indice = 0;
     intentos = 0;
@@ -359,163 +358,135 @@ void Seguridad() {// funcion para el estado de seguridad
   }
 }
 
-void Configuracion(){
-  pos_memoria =0;
-}
-
-void funcion_configuracion() {// funcion para el estado de configuracion
-  Serial.println(" maquina en estado de configuracion");
+//Estado de configuracion
+void Configuracion() {
   if (estado2Configuracion) {
-    Configuracion();
+    ConfigPosMemory();
     auxConfiguracion = false;
   }
-   mostrar_menu_1();
+  menu1();
   char key = keypad.getKey();
-  if (key) {
-    press_menu(key);
+  if(key){
+    opcion(key);
   }
 }
 
-void mostrar_menu_1(){
-  Serial.println(" maquina en estado conf menu 1");
- lcd.clear();
+//Funciones que gestionan la presentacion del menu
+void menu1(){
+  lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("1.Umb Temp High");
+  lcd.print("1.UmbTempHigh");
   lcd.setCursor(0, 1);
-  lcd.print("2.Umb Temp Low");
-  bool temp_while = true;
-  // char key = keypad.getKey();
- while (temp_while) {
-    char key = keypad.getKey();
- if (key) {
-   if(key == '#'){
-    mostrar_menu_2();    //-------- menu derecha
-    temp_while = false;
-   }
-   if(key== '*'){
-    mostrar_menu_1();    //-------- menu izquierda
-    temp_while = false;
-   }
-    press_menu(key);
-    temp_while = false;
-  }
-  }
-}
-void mostrar_menu_2(){
-  Serial.println(" maquina en estado conf menu 2");
-   lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("3.Umb Temp Alarm");
-  lcd.setCursor(0, 1);
-  lcd.print("4.Umb ligth");
-  bool temp_while = true;
- while (temp_while) {
-   char key = keypad.getKey();
- if (key) {
-   if(key=='#'){
-    mostrar_menu_3();    //-------- menu derecha
-    temp_while = false;
-   }
-   if(key=='*'){
-    mostrar_menu_1();    //-------- menu izquierda
-    temp_while = false;
-   }
-    press_menu(key);
-    temp_while = false;
-  }
+  lcd.print("2.UmbTempLow");
+  bool tempFlag = true;
+  while (tempFlag) {
+    char customKey = keypad.getKey();
+    if(customKey) {
+      if(customKey == '#'){
+        menu2();
+        tempFlag = false;
+      }
+      if(customKey == '*'){
+        menu1();
+        tempFlag = false;
+      }
+      opcion(customKey);      
+      tempFlag = false;
+    }
   }
 }
 
-void mostrar_menu_3(){
-    Serial.println(" maquina en estado conf menu 3");
-    lcd.clear();
+void menu2(){
+  lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("5.Umb sound");
+  lcd.print("3.UmbLuzHigh");
   lcd.setCursor(0, 1);
-  lcd.print("6.Continuar a M");
-  bool temp_while = true;
- while (temp_while) {
-   char key = keypad.getKey();
- if (key) {
-   if(key=='#'){
-    mostrar_menu_4();    //-------- menu derecha
-    temp_while = false;
-   }
-   if(key=='*'){
-    mostrar_menu_2();    //-------- menu izquierda
-    temp_while = false;
-   }
-    press_menu(key);
-    temp_while = false;
-  }
-  }
-}
-void mostrar_menu_4(){
-      Serial.println(" maquina en estado conf menu 4");
-       lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("7.reset/back");
-  lcd.setCursor(0, 1);
-  lcd.print("8.reset umb");
-  bool temp_while = true;
- while (temp_while) {
-   char key = keypad.getKey();
- if (key) {
-   if(key=='#'){
-    mostrar_menu_4();    //-------- menu derecha
-    temp_while = false;
-   }
-   if(key=='*'){
-    mostrar_menu_3();    //-------- menu izquierda
-    temp_while = false;
-   }
-    press_menu(key);
-    temp_while = false;
-  }
+  lcd.print("4.UmbLuzLow");
+  bool luzFlag = true;
+  while (luzFlag) {
+    char customKey = keypad.getKey();
+    if(customKey){
+      if(customKey == '#'){
+        menu3();
+        luzFlag = false;
+      }
+      if(customKey == '*'){
+        menu1();
+        luzFlag = false;
+      }
+    opcion(customKey);
+    luzFlag = false;
+    }
   }
 }
 
-void press_menu(char key) {// hace la seleccion correspondiente al numero dijitado en estado de configuracion
-  switch (key)
+void menu3(){
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("5.Reset");
+  lcd.setCursor(0, 0);
+  lcd.print("6.Iniciar");
+  bool resetFlag = true;
+  while(resetFlag){
+    char customKey = keypad.getKey();
+    if(customKey){
+      if(customKey == '#'){
+        menu3();
+        resetFlag = false;
+      }
+      if(customKey == '*'){
+        menu2();
+        resetFlag = false;
+      }
+      opcion(customKey);
+      resetFlag = false;
+    }
+  }
+}
+
+//Funcion que gestiona las opciones
+void opcion(char customKey) {
+  switch (customKey)
   {
-    case '1': {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("opcion 1 ");
-        delay(1000);
-        conf_temp_alta();
-      };   break;
+    case '1':{
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("UmbTempHigh:");
+      delay(1000);
+      OpcionUmbTempHigh();
+    };   break;
     case '2': {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("opcion 2 ");
-        delay(1000);
-        conf_temp_baja();
-      };   break;
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("UmbTempLow:");
+      delay(1000);
+      OpcionUmbTempLow();
+    };   break;
     case '3': {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("opcion 3 ");
-        delay(1000);
-        conf_temp_alarma();
-      };   break;
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("UmbLuzHigh:");
+      delay(1000);
+      OpcionUmbLuzHigh();
+    };   break;
     case '4': {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("opcion 4 ");
-        delay(1000);
-        conf_umb_luz();
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("UmbLuzLow:");
+      delay(1000);
+      OpcionUmbLuzLow();
       };   break;
     case '5': {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("opcion 5 ");
-        delay(1000);
-      };   break;
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Reset:");
+      delay(1000);
+      OpcionReset();
+    };   break;
     case '6': {
         lcd.clear();
         lcd.setCursor(0, 0);
-        lcd.print("opcion 6 ");
+        lcd.print("Iniciando:");
         delay(1000);
         currentInput = Input::forward;
         lcd.clear();
@@ -529,16 +500,8 @@ void press_menu(char key) {// hace la seleccion correspondiente al numero dijita
         currentInput = Input::reset;
         lcd.clear();
         lcd.setCursor(0, 0); 
-       };  
-      break;
+      };  break;
     case '8': {
-        lcd.clear();
-        lcd.setCursor(0, 0);
-        lcd.print("opcion 8 ");
-        delay(1000);
-        reset_valores();
-      };   break;
-    case '9': {
         lcd.clear();
         lcd.setCursor(0, 0);
         lcd.print("RESET ");
@@ -549,302 +512,172 @@ void press_menu(char key) {// hace la seleccion correspondiente al numero dijita
   }
 }
 
-void reset_valores(){
-   pos_memoria =0;
-   EEPROM.update(pos_memoria, def_umb_temp_alta);
-    pos_memoria =1;
-   EEPROM.update(pos_memoria, def_umb_temp_baja);
-    pos_memoria =2;
-   EEPROM.update(pos_memoria, def_umb_temp_alarma);
-    pos_memoria =3;
-   EEPROM.update(pos_memoria, def_umb_luz);
-    pos_memoria =5;
-   EEPROM.update(pos_memoria, def_umb_sonido);
-   lcd.setCursor(0, 1);
-        lcd.print("reset defaul");
-        delay(1000);
-        lcd.setCursor(0, 1);
-        lcd.print("                ");
-        flag_start_configuracion = true;
+void ConfigPosMemory(){
+  posMemory = 0;
+}
+
+//Funciones que gestionan la configuracion
+void OpcionReset(){
+  posMemory = 0;
+  EEPROM.update(posMemory, defUmbTempHigh);
+  posMemory = 1;
+  EEPROM.update(posMemory, defUmbTempLow);
+  posMemory = 2;
+  EEPROM.update(posMemory, defUmbLuz);
+  posMemory = 3;
+  EEPROM.update(posMemory, defUmbLuzLow);
+  lcd.setCursor(0, 1);
+  lcd.print("Umbrales por");
+  lcd.setCursor(0, 1);
+  lcd.print("Defecto");
+  delay(1000);
+  auxConfiguracion = true;
   lcd.clear();
   lcd.setCursor(0, 0);
 }
 
-void conf_temp_alta() {// funcion que establese el umbral de temperatura alta
-  pos_memoria = 0;
-  byte temp_mem = EEPROM.read(pos_memoria);
-  if (temp_mem != NULL) {
-    umb_temp_alta = temp_mem;
-  }
-  char key = keypad.getKey();
-  bool temp_while = true;
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("UMB TEMP HIGH");
-  int temp_encoder = 0;
-  int temp_encoder2 = 0;
+//Variables para obtener valores a partir del teclado y definir umbrales
+char valIngresado[1];
+int indiceVal=0;
+int numero;
 
-  while (temp_while) {
-    static int pos = 0;
-    encoder.tick();
-    int newPos = encoder.getPosition();
-    if (pos != newPos) {
-      Serial.println(newPos);
-      temp_encoder2 = newPos;
-      pos = newPos;
-    }
-    if (temp_encoder2 > temp_encoder) {
-      umb_temp_alta = umb_temp_alta + 1;
-      temp_encoder = temp_encoder2;
-    }
-    if (temp_encoder2 < temp_encoder) {
-      umb_temp_alta = umb_temp_alta - 1;
-      temp_encoder = temp_encoder2;
-    }
-    key = keypad.getKey();
-    lcd.setCursor(0, 1);
-    lcd.print("    ");
-    lcd.setCursor(0, 1);
-    lcd.print(umb_temp_alta);
-    tiempo = millis();
-  while (millis() < tiempo + 10UL) {// crea un retardo para la correcta visualizacion
+void OpcionUmbTempHigh(){
+  posMemory = 0;
+  byte tempMemory = EEPROM.read(posMemory);
+  if (tempMemory != NULL) {
+    umbTempHigh = tempMemory;
   }
-    if (key == '0') {
-      if (umb_temp_alta > umb_temp_baja && umb_temp_alta < umb_temp_alarma && umb_temp_alta < max_temp && umb_temp_alta > min_temp) {
-        temp_while = false;
-      } else {
-        lcd.setCursor(0, 1);
-        lcd.print("temp incorrecta");
-        delay(1000);
-        lcd.setCursor(0, 1);
-        lcd.print("                ");
+  char customKey = keypad.getKey();
+  bool tempFlag = true;
+  lcd.setCursor(0, 1);
+  while(tempFlag) {
+    if (customKey){
+      valIngresado[indice]=customKey;
+      Serial.println(customKey);
+      lcd.print(customKey);
+      indiceVal++;
+      if (indiceVal == 1){
+        sscanf(valIngresado, "%d", &numero);
+        defUmbTempHigh = numero;
+        tempFlag = false;
+        indiceVal = 0;
       }
-    }
+    } 
   }
-  EEPROM.update(pos_memoria, umb_temp_alta);
-  flag_start_configuracion = true;
-  encoderVal = 0;
-  lcd.clear();
-  lcd.setCursor(0, 0);
 }
-void conf_temp_baja() {// funcion que establese el umbral de temperatura baja
-  pos_memoria = 1;
-  byte temp_mem = EEPROM.read(pos_memoria);
-  if (temp_mem != NULL) {
-    umb_temp_baja = temp_mem;
-  }
-  //encoderVal=5;
-  char key = keypad.getKey();
-  bool temp_while = true;
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("UMB TEMP LOW");
-  int temp_encoder = 0;
-  int temp_encoder2 = 0;
-  while (temp_while) {
-    static int pos = 0;
-    encoder.tick();
-    int newPos = encoder.getPosition();
-    if (pos != newPos) {
-      Serial.println(newPos);
-      temp_encoder2 = newPos;
-      pos = newPos;
-    }
-    if (temp_encoder2 > temp_encoder) {
-      umb_temp_baja = umb_temp_baja + 1;
-      temp_encoder = temp_encoder2;
-    }
-    if (temp_encoder2 < temp_encoder) {
-      umb_temp_baja = umb_temp_baja - 1;
-      temp_encoder = temp_encoder2;
-    }
-    key = keypad.getKey();
-    lcd.setCursor(0, 1);
-    lcd.print("    ");
-    lcd.setCursor(0, 1);
-    lcd.print(umb_temp_baja);
-      tiempo = millis();
-  while (millis() < tiempo + 10UL) {// crea un retardo para la correcta visualizacion
-  }
-    if (key == '0') {
-      if (umb_temp_baja < umb_temp_alta && umb_temp_baja < umb_temp_alarma && umb_temp_baja < max_temp && umb_temp_baja > min_temp) {
-        temp_while = false;
 
-      } else {
-        lcd.setCursor(0, 1);
-        lcd.print("temp incorrecta");
-        delay(1000);
-        lcd.setCursor(0, 1);
-        lcd.print("                ");
+void OpcionUmbTempLow(){
+  posMemory = 1;
+  byte tempMemory = EEPROM.read(posMemory);
+  if (tempMemory != NULL) {
+    umbTempLow = tempMemory;
+  }
+  char customKey = keypad.getKey();
+  bool tempFlag = true;
+  lcd.setCursor(0, 1);
+  while(tempFlag) {
+    if (customKey){
+      valIngresado[indice]=customKey;
+      Serial.println(customKey);
+      lcd.print(customKey);
+      indiceVal++;
+      if (indiceVal == 1){
+        sscanf(valIngresado, "%d", &numero);
+        umbTempLow = numero;
+        tempFlag = false;
+        indiceVal = 0;
       }
-    }
+    } 
   }
-  EEPROM.update(pos_memoria, umb_temp_baja);
-  flag_start_seguridad = true;
-  encoderVal = 0;
-  lcd.clear();
-  lcd.setCursor(0, 0);
 }
-void conf_temp_alarma() {// funcion que establese el umbral de temperatura de alarma
-  pos_memoria = 2;
-  byte temp_mem = EEPROM.read(pos_memoria);
-  if (temp_mem != NULL) {
-    umb_temp_alarma = temp_mem;
-  }
-  //encoderVal=5;
-  char key = keypad.getKey();
-  bool temp_while = true;
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("UMB TEMP ALARM");
 
-  int temp_encoder = 0;
-  int temp_encoder2 = 0;
-
-  while (temp_while) {
-    static int pos = 0;
-    encoder.tick();
-    int newPos = encoder.getPosition();
-    if (pos != newPos) {
-      Serial.println(newPos);
-      temp_encoder2 = newPos;
-      pos = newPos;
-    }
-    if (temp_encoder2 > temp_encoder) {
-      umb_temp_alarma = umb_temp_alarma + 1;
-      temp_encoder = temp_encoder2;
-    }
-    if (temp_encoder2 < temp_encoder) {
-      umb_temp_alarma = umb_temp_alarma - 1;
-      temp_encoder = temp_encoder2;
-    }
-    key = keypad.getKey();
-    lcd.setCursor(0, 1);
-    lcd.print("    ");
-    lcd.setCursor(0, 1);
-    lcd.print(umb_temp_alarma);
-      tiempo = millis();
-  while (millis() < tiempo + 10UL) {// crea un retardo para la correcta visualizacion
+void OpcionUmbLuzHigh() {// funcion que establese el umbral de luz
+  posMemory = 2;
+  int LuzMemory;
+  EEPROM.get(posMemory, LuzMemory);
+  if (LuzMemory != NULL) {
+    umbLuzHigh = LuzMemory;
   }
-    if (key == '0') {
-      if (umb_temp_alarma > umb_temp_alta && umb_temp_alarma > umb_temp_baja && umb_temp_alarma < max_temp && umb_temp_alarma > min_temp) {
-        temp_while = false;
-      } else {
-        lcd.setCursor(0, 1);
-        lcd.print("temp incorrecta");
-        delay(1000);
-        lcd.setCursor(0, 1);
-        lcd.print("                ");
+  char customKey = keypad.getKey();
+  bool tempFlag = true;
+  lcd.setCursor(0, 1);
+  while(tempFlag) {
+    if (customKey){
+      valIngresado[indice]=customKey;
+      Serial.println(customKey);
+      lcd.print(customKey);
+      indiceVal++;
+      if (indiceVal == 1){
+        sscanf(valIngresado, "%d", &numero);
+        umbLuzHigh = numero;
+        tempFlag = false;
+        indiceVal = 0;
       }
-    }
+    } 
   }
-  EEPROM.update(pos_memoria, umb_temp_alarma);
-  flag_start_configuracion = true;
-  encoderVal = 0;
-  lcd.clear();
-  lcd.setCursor(0, 0);
-}
-void conf_umb_luz() {// funcion que establese el umbral de luz
-  pos_memoria = 3;
-  int temp_mem;
-  EEPROM.get(pos_memoria, temp_mem);
-  if (temp_mem != NULL) {
-    umb_luz = temp_mem;
-  }
-  //encoderVal=5;
-  char key = keypad.getKey();
-  bool temp_while = true;
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("UMB LIGHT");
-  int temp_encoder = 0;
-  int temp_encoder2 = 0;
-  while (temp_while) {
-    static int pos = 0;
-    encoder.tick();
-    int newPos = encoder.getPosition();
-    if (pos != newPos) {
-      Serial.println(newPos);
-      temp_encoder2 = newPos;
-      pos = newPos;
-    }
-    if (temp_encoder2 > temp_encoder) {
-      umb_luz = umb_luz + 1;
-      temp_encoder = temp_encoder2;
-    }
-    if (temp_encoder2 < temp_encoder) {
-      umb_luz = umb_luz - 1;
-      temp_encoder = temp_encoder2;
-    }
-    key = keypad.getKey();
-    lcd.setCursor(0, 1);
-    lcd.print("    ");
-    lcd.setCursor(0, 1);
-    lcd.print(umb_luz);
-      tiempo = millis();
-  while (millis() < tiempo + 10UL) {// crea un retardo para la correcta visualizacion
-  }
-    if (key == '0') {
-      if (umb_luz < 1023 && umb_luz > 0) {
-        temp_while = false;
-      } else {
-        lcd.setCursor(0, 1);
-        lcd.print("UMB incorrecto");
-        delay(1000);
-        lcd.setCursor(0, 1);
-        lcd.print("                ");
-      }
-    }
-  }
-  EEPROM.put(pos_memoria, umb_luz);
-  flag_start_configuracion = true;
-  encoderVal = 0;
-  lcd.clear();
-  lcd.setCursor(0, 0);
 }
 
-#pragma endregion
-#pragma region estado_monitoreo
+void OpcionUmbLuzLow() {
+  posMemory = 3;
+  int LuzMemory;
+  EEPROM.get(posMemory, LuzMemory);
+  if (LuzMemory != NULL) {
+    umbLuzLow = LuzMemory;
+  }
+  char customKey = keypad.getKey();
+  bool tempFlag = true;
+  lcd.setCursor(0, 1);
+  while(tempFlag) {
+    if (customKey){
+      valIngresado[indice]=customKey;
+      Serial.println(customKey);
+      lcd.print(customKey);
+      indiceVal++;
+      if (indiceVal == 1){
+        sscanf(valIngresado, "%d", &numero);
+        umbLuzLow = numero;
+        tempFlag = false;
+        indiceVal = 0;
+      }
+    } 
+  }
+}
+
+//byte umbTempHigh = 30;
+//byte umbTempLow = 18;
+//int umbLuzHigh = 34;
+//int umbLuzLow = 34;
+//byte umbTempAlarm  = 40;
+
+//Estado de monitoreo
 void start_monitoreo(){
      leer_Eprom();
 }
 
-void funcion_monitoreo() {// funcion para el estado de bloqueo
+void funcion_monitoreo() {
   Serial.println(" maquina en estado monitoreo"); // se imprime en el debug el estado actual
-  if (flag_start_monitoreo) { 
+  if (auxMonitoreo) { 
     start_monitoreo();
-    flag_start_monitoreo = false;
+    auxMonitoreo = false;
   }
     // se actualizan las tareas asincronas
   asyncTaskTemp.Update();
   asyncTaskPhoto.Update();
-  digitalWrite(swPin, HIGH);// se hace el senso del swich del encoder por 3 segundos para salir de run a configuracion
-  if (digitalRead(swPin) == LOW)
-  {
-    digitalWrite(swPin, HIGH);
-    tiempo = millis();
-    while (millis() < tiempo + 3000UL) {
-    }
-    if (digitalRead(swPin) == LOW)
-    {
-    currentInput = Input::Backward;
-    }
-  }
    Serial.println(photo_value);
   // seleccion de funciones segun temperatura
-  if (temperatura <= umb_temp_baja) {
+  if (temperatura <= umbTempLow) {
     funcion_temp_baja();
   }
-  if (temperatura > umb_temp_baja && temperatura <= umb_temp_alta ) {
+  if (temperatura > umbTempLow && temperatura <= umbTempHigh ) {
     funcion_temp_normal();
   }
-  if (temperatura > umb_temp_alta && temperatura < umb_temp_alarma ) {
+  if (temperatura > umbTempHigh && temperatura < umb_temp_alarma ) {
     funcion_temp_alta();
   }
   if (temperatura >= umb_temp_alarma  ) {
    currentInput = Input::forward;
   }
-  if (photo_value <  umb_luz) {// muestra un mensaje en pantalla si se supera el umbral de luz
+  if (photo_value <  umbLuzHigh) {// muestra un mensaje en pantalla si se supera el umbral de luz
     tiempo = millis();
     while (millis() < tiempo + 300UL) {
     }
@@ -859,9 +692,9 @@ void funcion_monitoreo() {// funcion para el estado de bloqueo
 
 void funcion_temp_baja() { // funciones de maquina en estado Run con temperatura baja
   Serial.println(" maquina en estado monitoreo temp baja"); // se imprime en el debug el estado actual
-  digitalWrite(ledRojo, LOW);
-  digitalWrite(ledAzul, HIGH);
-  digitalWrite(ledVerde, LOW); // led en azul
+  digitalWrite(LED_RED, LOW);
+  digitalWrite(LED_BLUE, HIGH);
+  digitalWrite(LED_GREEN, LOW); // led en azul
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("temp:");
@@ -878,9 +711,9 @@ void funcion_temp_baja() { // funciones de maquina en estado Run con temperatura
 
 void funcion_temp_normal() { // funciones de maquina en estado Run con temperatura normal
   Serial.println(" maquina en estado monitoreo temp normal"); // se imprime en el debug el estado actual
-  digitalWrite(ledRojo, LOW);
-  digitalWrite(ledAzul, LOW);
-  digitalWrite(ledVerde, HIGH); // led en azul
+  digitalWrite(LED_RED, LOW);
+  digitalWrite(LED_BLUE, LOW);
+  digitalWrite(LED_GREEN, HIGH); // led en azul
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("temp:");
@@ -897,9 +730,9 @@ void funcion_temp_normal() { // funciones de maquina en estado Run con temperatu
 
 void funcion_temp_alta() { // funciones de maquina en estado Run con temperatura alta
   Serial.println(" maquina en estado monitoreo temp alta"); // se imprime en el debug el estado actual
-  digitalWrite(ledRojo, HIGH);
-  digitalWrite(ledAzul, LOW);
-  digitalWrite(ledVerde, LOW); // led en azul
+  digitalWrite(LED_RED, HIGH);
+  digitalWrite(LED_BLUE, LOW);
+  digitalWrite(LED_GREEN, LOW); // led en azul
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("temp:");
@@ -920,46 +753,37 @@ void leer_Eprom() {// lee los valores de los umbrales almacenados en la memoria
   // 2 umb_temp_alarma
   // 3,4 umb_luz    // se asgnan 2 bytes por ser enteros
   // 5,6 umb_sonido
-  pos_memoria = 0;
-  int temp_mem = EEPROM.read(pos_memoria);
-  if (temp_mem != NULL) {
-    umb_temp_alta = temp_mem;
+  posMemory = 0;
+  int auxMemory = EEPROM.read(posMemory);
+  if (auxMemory != NULL) {
+    umbTempHigh = auxMemory;
   }
-  pos_memoria = 1;
-  temp_mem = EEPROM.read(pos_memoria);
-  if (temp_mem != NULL) {
-    umb_temp_baja = temp_mem;
+  posMemory = 1;
+  auxMemory = EEPROM.read(posMemory);
+  if (auxMemory != NULL) {
+    umbTempLow = auxMemory;
   }
-  pos_memoria = 2;
-  temp_mem = EEPROM.read(pos_memoria);
-  if (temp_mem != NULL) {
-    umb_temp_alarma = temp_mem;
+  posMemory = 2;
+  auxMemory = EEPROM.read(posMemory);
+  if (auxMemory != NULL) {
+    umb_temp_alarma = auxMemory;
   }
-  pos_memoria = 3;
-  EEPROM.get(pos_memoria, temp_mem);
-  if (temp_mem != NULL) {
-    umb_luz = temp_mem;
-  }
-  pos_memoria = 5;
-  EEPROM.get(pos_memoria, temp_mem);
-  if (temp_mem != NULL) {
-    umb_sonido = temp_mem;
+  posMemory = 3;
+  EEPROM.get(posMemory, auxMemory);
+  if (auxMemory != NULL) {
+    umbLuzHigh = auxMemory;
   }
 }
 
-#pragma endregion
-
-#pragma region estado_de_alarma
-
 void funcion_alarma() { // funciones de maquina en estado run con temperatura de alarma
   Serial.println(" maquina en estado de alarma"); // se imprime en el debug el estado actual
-  digitalWrite(ledRojo, LOW);
-  digitalWrite(ledAzul, HIGH);
-  digitalWrite(ledVerde, LOW); // led en azul
+  digitalWrite(LED_RED, LOW);
+  digitalWrite(LED_BLUE, HIGH);
+  digitalWrite(LED_GREEN, LOW); // led en azul
   delay(200);
-  digitalWrite(ledRojo, HIGH);
-  digitalWrite(ledAzul, LOW);
-  digitalWrite(ledVerde, LOW); // led rojo
+  digitalWrite(LED_RED, HIGH);
+  digitalWrite(LED_BLUE, LOW);
+  digitalWrite(LED_GREEN, LOW); // led rojo
 
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -970,8 +794,8 @@ void funcion_alarma() { // funciones de maquina en estado run con temperatura de
   lcd.setCursor(0, 1);
   lcd.print("ALARMA");
 
-  sonar_buzz(); // se hace sonar el buzzer en señal de alarma
-  secuencia_led(); // se muestra una secuencia de led en rojo y azul en señal de alarma
+  sonar_buzz(); // se hace sonar el buzzer en seÃ±al de alarma
+  secuencia_led(); // se muestra una secuencia de led en rojo y azul en seÃ±al de alarma
 
   tiempo = millis(); // se da tiempo de espera de alarma
   while (millis() < tiempo + 2000UL) {// crea un retardo para la duracion del estado ***********
@@ -990,5 +814,3 @@ void sonar_buzz() { // funcion encargada de hacer sonar el buzzer
     noTone(pin_buzz);        // detiene reproduccion de tono
   }
 }
-#pragma endregion
-//FIN DEL PROGRAMA
