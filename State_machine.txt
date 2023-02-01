@@ -26,9 +26,9 @@ byte colPins[COLS] = {10, 4, 3, 2};
 Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
 
 //LED RGB
-#define LED_GREEN 53
+#define LED_GREEN 49
 #define LED_RED 51
-#define LED_BLUE 49
+#define LED_BLUE 53
 //int
 
 //Sensor de luz (Fotoresistor)
@@ -47,7 +47,7 @@ int max_temp = 50;
 int min_temp = 0;
 
 //Buzzer
-#define pin_buzz 4
+#define pin_buzz 19
 #define NOTE_B6  1976
 #define NOTE_C7  2093
 #define NOTE_CS7 2217
@@ -230,7 +230,7 @@ void updateStateMachine(){
       break;
     case estado::estado4Alarma:
      switch (currentInput){
-          case Input::Unknown: funcion_alarma(); break;
+          case Input::Unknown: Alarma(); break;
           case Input::reset:
               currentState = estado::estado1Seguridad;
               ContrasenaCorrecta = false;
@@ -517,25 +517,6 @@ void ConfigPosMemory(){
 }
 
 //Funciones que gestionan la configuracion
-void OpcionReset(){
-  posMemory = 0;
-  EEPROM.update(posMemory, defUmbTempHigh);
-  posMemory = 1;
-  EEPROM.update(posMemory, defUmbTempLow);
-  posMemory = 2;
-  EEPROM.update(posMemory, defUmbLuz);
-  posMemory = 3;
-  EEPROM.update(posMemory, defUmbLuzLow);
-  lcd.setCursor(0, 1);
-  lcd.print("Umbrales por");
-  lcd.setCursor(0, 1);
-  lcd.print("Defecto");
-  delay(1000);
-  auxConfiguracion = true;
-  lcd.clear();
-  lcd.setCursor(0, 0);
-}
-
 //Variables para obtener valores a partir del teclado y definir umbrales
 char valIngresado[1];
 int indiceVal=0;
@@ -643,11 +624,24 @@ void OpcionUmbLuzLow() {
   }
 }
 
-//byte umbTempHigh = 30;
-//byte umbTempLow = 18;
-//int umbLuzHigh = 34;
-//int umbLuzLow = 34;
-//byte umbTempAlarm  = 40;
+void OpcionReset(){
+  posMemory = 0;
+  EEPROM.update(posMemory, defUmbTempHigh);
+  posMemory = 1;
+  EEPROM.update(posMemory, defUmbTempLow);
+  posMemory = 2;
+  EEPROM.update(posMemory, defUmbLuz);
+  posMemory = 3;
+  EEPROM.update(posMemory, defUmbLuzLow);
+  lcd.setCursor(0, 1);
+  lcd.print("Umbrales por");
+  lcd.setCursor(0, 1);
+  lcd.print("Defecto");
+  delay(1000);
+  auxConfiguracion = true;
+  lcd.clear();
+  lcd.setCursor(0, 0);
+}
 
 //Estado de monitoreo
 void start_monitoreo(){
@@ -655,104 +649,32 @@ void start_monitoreo(){
 }
 
 void funcion_monitoreo() {
-  Serial.println(" maquina en estado monitoreo"); // se imprime en el debug el estado actual
   if (auxMonitoreo) { 
     start_monitoreo();
     auxMonitoreo = false;
   }
-    // se actualizan las tareas asincronas
+  // se actualizan las tareas asincronas
   asyncTaskTemp.Update();
   asyncTaskPhoto.Update();
-   Serial.println(photo_value);
+  Serial.println(temp_value);
+  Serial.println(photo_value);
   // seleccion de funciones segun temperatura
-  if (temperatura <= umbTempLow) {
-    funcion_temp_baja();
+  if (temp_value <= umbTempHigh) {
+    currentInput = Input::forward;
   }
-  if (temperatura > umbTempLow && temperatura <= umbTempHigh ) {
-    funcion_temp_normal();
+  if (temp_value <= umbTempLow) {
+    currentInput = Input::forward;
   }
-  if (temperatura > umbTempHigh && temperatura < umb_temp_alarma ) {
-    funcion_temp_alta();
+  if (temp_value <= umbLuzHigh) {
+    currentInput = Input::forward;
   }
-  if (temperatura >= umb_temp_alarma  ) {
-   currentInput = Input::forward;
-  }
-  if (photo_value <  umbLuzHigh) {// muestra un mensaje en pantalla si se supera el umbral de luz
-    tiempo = millis();
-    while (millis() < tiempo + 300UL) {
-    }
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("hum sensor luz ");
-    tiempo = millis();
-    while (millis() < tiempo + 800UL) {
-    }
+  if (temp_value <= umbLuzLow) {
+    currentInput = Input::forward;
   }
 }
 
-void funcion_temp_baja() { // funciones de maquina en estado Run con temperatura baja
-  Serial.println(" maquina en estado monitoreo temp baja"); // se imprime en el debug el estado actual
-  digitalWrite(LED_RED, LOW);
-  digitalWrite(LED_BLUE, HIGH);
-  digitalWrite(LED_GREEN, LOW); // led en azul
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("temp:");
-  lcd.print(temperatura); // se muestra en pantalla la temperatura dada por la convercion del valor del sensor
-  lcd.setCursor(0, 1);
-  lcd.print("ph:");
-  lcd.print(photo_value);
-  lcd.setCursor(12, 0);
-  lcd.print("A");// se imprime en pantalla el indicador de estado
-  tiempo = millis();
-  while (millis() < tiempo + 500UL) {// crea un retardo para la correcta visualizacion
-  }
-}
-
-void funcion_temp_normal() { // funciones de maquina en estado Run con temperatura normal
-  Serial.println(" maquina en estado monitoreo temp normal"); // se imprime en el debug el estado actual
-  digitalWrite(LED_RED, LOW);
-  digitalWrite(LED_BLUE, LOW);
-  digitalWrite(LED_GREEN, HIGH); // led en azul
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("temp:");
-  lcd.print(temperatura); // se muestra en pantalla la temperatura dada por la convercion del valor del sensor
-  lcd.setCursor(0, 1);
-  lcd.print("photo:");
-  lcd.print(photo_value);
-  lcd.setCursor(12, 0);
-  lcd.print("B"); // se imprime en pantalla el indicador de estado
-  tiempo = millis();
-  while (millis() < tiempo + 100UL) {// crea un retardo para la correcta visualizacion
-  }
-}
-
-void funcion_temp_alta() { // funciones de maquina en estado Run con temperatura alta
-  Serial.println(" maquina en estado monitoreo temp alta"); // se imprime en el debug el estado actual
-  digitalWrite(LED_RED, HIGH);
-  digitalWrite(LED_BLUE, LOW);
-  digitalWrite(LED_GREEN, LOW); // led en azul
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("temp:");
-  lcd.print(temperatura); // se muestra en pantalla la temperatura dada por la convercion del valor del sensor
-  lcd.setCursor(0, 1);
-  lcd.print("photo:");
-  lcd.print(photo_value);
-  lcd.setCursor(12, 0);
-  tiempo = millis();
-  while (millis() < tiempo + 100UL) {// crea un retardo para la correcta visualizacion
-  }
-}
-
-void leer_Eprom() {// lee los valores de los umbrales almacenados en la memoria
-  // se establese los indices de memoria de la siguente manera
-  // 0 umb_temp_alta
-  // 1 umb_temp_baja
-  // 2 umb_temp_alarma
-  // 3,4 umb_luz    // se asgnan 2 bytes por ser enteros
-  // 5,6 umb_sonido
+//Lee los valores de los umbrales almacenados en la memoria
+void leer_Eprom() {
   posMemory = 0;
   int auxMemory = EEPROM.read(posMemory);
   if (auxMemory != NULL) {
@@ -766,43 +688,32 @@ void leer_Eprom() {// lee los valores de los umbrales almacenados en la memoria
   posMemory = 2;
   auxMemory = EEPROM.read(posMemory);
   if (auxMemory != NULL) {
-    umb_temp_alarma = auxMemory;
+    umbLuzHigh = auxMemory;
   }
   posMemory = 3;
   EEPROM.get(posMemory, auxMemory);
   if (auxMemory != NULL) {
-    umbLuzHigh = auxMemory;
+    umbLuzLow = auxMemory;
   }
 }
 
-void funcion_alarma() { // funciones de maquina en estado run con temperatura de alarma
-  Serial.println(" maquina en estado de alarma"); // se imprime en el debug el estado actual
+//Estado de alarma
+void Alarma() {
   digitalWrite(LED_RED, LOW);
-  digitalWrite(LED_BLUE, HIGH);
-  digitalWrite(LED_GREEN, LOW); // led en azul
-  delay(200);
-  digitalWrite(LED_RED, HIGH);
   digitalWrite(LED_BLUE, LOW);
-  digitalWrite(LED_GREEN, LOW); // led rojo
-
+  digitalWrite(LED_GREEN, LOW); // led en azul
+  digitalWrite(LED_RED, HIGH);
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("temp:");
-  lcd.print(temperatura); // se muestra en pantalla la temperatura dada por la convercion del valor del sensor
-  lcd.setCursor(12, 0);
-  lcd.print("D"); // se imprime en pantalla el indicador de estado
+  lcd.print("Alarma - Umbral");
   lcd.setCursor(0, 1);
-  lcd.print("ALARMA");
-
+  lcd.print("Superado"); // se imprime en pantalla el indicador de estado
   sonar_buzz(); // se hace sonar el buzzer en señal de alarma
-  secuencia_led(); // se muestra una secuencia de led en rojo y azul en señal de alarma
-
+  delay(3000);
   tiempo = millis(); // se da tiempo de espera de alarma
   while (millis() < tiempo + 2000UL) {// crea un retardo para la duracion del estado ***********
-
-  currentInput = Input::forward;
-
-}
+    currentInput = Input::forward;
+  }
 }
 
 void sonar_buzz() { // funcion encargada de hacer sonar el buzzer
