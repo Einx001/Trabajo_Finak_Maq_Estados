@@ -4,6 +4,7 @@
 #include <EEPROM.h>
 #include "AsyncTaskLib.h"
 #include <stdio.h>
+//
 
 #define DEBUG(a) Serial.print(millis()); Serial.print(": "); Serial.println(a);
 
@@ -26,9 +27,9 @@ byte colPins[COLS] = {10, 4, 3, 2};
 Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
 
 //LED RGB
-#define LED_GREEN 49
+#define LED_GREEN 53
 #define LED_RED 51
-#define LED_BLUE 53
+#define LED_BLUE 49
 //int
 
 //Sensor de luz (Fotoresistor)
@@ -59,13 +60,13 @@ int melodia[] = { NOTE_B6, NOTE_C7, NOTE_CS7, NOTE_D7 };
 //Definicion de umbrales configurables para los sensores
 byte umbTempHigh = 30;
 byte umbTempLow = 18;
-int umbLuzHigh = 34;
+int umbLuzHigh = 100;
 int umbLuzLow = 34;
 
 // definicion de umbrales por defecto de los sensores
 byte defUmbTempHigh = 30;
 byte defUmbTempLow = 18;
-int defUmbLuz = 34;
+int defUmbLuz = 100;
 int defUmbLuzLow = 34;
 
 //variables contraseña
@@ -258,7 +259,7 @@ void updateStateMachine(){
 }
 
 void press_key_static(char key){ // este metodo me ejecuta la lectura de la entrada desde las teclas 8 (back) y 9 (reset)
-  if (key == '7') {
+  if (key == 'A') {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("BACK");
@@ -266,7 +267,7 @@ void press_key_static(char key){ // este metodo me ejecuta la lectura de la entr
     delay(500);
     currentInput = Input::Backward;
   } 
-  if (key == '8') {
+  if (key == 'B') {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("RESET");
@@ -424,7 +425,7 @@ void menu3(){
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("5.Reset");
-  lcd.setCursor(0, 0);
+  lcd.setCursor(0, 1);
   lcd.print("6.Iniciar");
   bool resetFlag = true;
   while(resetFlag){
@@ -487,7 +488,7 @@ void opcion(char customKey) {
         lcd.clear();
         lcd.setCursor(0, 0);
         lcd.print("Iniciando:");
-        delay(1000);
+        delay(1000);  
         currentInput = Input::forward;
         lcd.clear();
         lcd.setCursor(0, 0);       
@@ -495,19 +496,30 @@ void opcion(char customKey) {
     case '7': {
         lcd.clear();
         lcd.setCursor(0, 0);
-        lcd.print("opcion 7 ");
+        lcd.print("Iniciando por");
+        lcd.setCursor(0, 1);
+        lcd.print("Defecto!");
         delay(1000);
-        currentInput = Input::reset;
+        int posMemory;
+        posMemory = 0;
+        EEPROM.put(posMemory, defUmbTempHigh);
+        posMemory = 1;
+        EEPROM.put(posMemory, defUmbTempLow);
+        posMemory = 2;
+        EEPROM.put(posMemory, defUmbLuz);
+        posMemory = 3;
+        EEPROM.put(posMemory, defUmbLuzLow);    
+        currentInput = Input::forward;
         lcd.clear();
         lcd.setCursor(0, 0); 
       };  break;
-    case '8': {
+    /*case '8': {
         lcd.clear();
         lcd.setCursor(0, 0);
-        lcd.print("RESET ");
+        lcd.print("Configuracion");
         delay(1000);
         currentInput= Input::reset;
-      };   break;
+      };   break;*/
     default: break;
   }
 }
@@ -518,8 +530,9 @@ void ConfigPosMemory(){
 
 //Funciones que gestionan la configuracion
 //Variables para obtener valores a partir del teclado y definir umbrales
-char valIngresado[1];
+char valIngresado[3];
 int indiceVal=0;
+char auxString;
 int numero;
 
 void OpcionUmbTempHigh(){
@@ -528,20 +541,19 @@ void OpcionUmbTempHigh(){
   if (tempMemory != NULL) {
     umbTempHigh = tempMemory;
   }
-  char customKey = keypad.getKey();
   bool tempFlag = true;
   lcd.setCursor(0, 1);
   while(tempFlag) {
+    char customKey = keypad.getKey();
     if (customKey){
-      valIngresado[indice]=customKey;
-      Serial.println(customKey);
+      valIngresado[indiceVal]=customKey;
       lcd.print(customKey);
       indiceVal++;
-      if (indiceVal == 1){
-        sscanf(valIngresado, "%d", &numero);
-        defUmbTempHigh = numero;
+      if (indiceVal == 2){
+        defUmbTempHigh = atoi(valIngresado);
         tempFlag = false;
         indiceVal = 0;
+        EEPROM.put(posMemory, defUmbTempHigh);
       }
     } 
   }
@@ -553,20 +565,20 @@ void OpcionUmbTempLow(){
   if (tempMemory != NULL) {
     umbTempLow = tempMemory;
   }
-  char customKey = keypad.getKey();
   bool tempFlag = true;
   lcd.setCursor(0, 1);
   while(tempFlag) {
+    char customKey = keypad.getKey();
     if (customKey){
-      valIngresado[indice]=customKey;
+      valIngresado[indiceVal]=customKey;
       Serial.println(customKey);
       lcd.print(customKey);
       indiceVal++;
-      if (indiceVal == 1){
-        sscanf(valIngresado, "%d", &numero);
-        umbTempLow = numero;
+      if (indiceVal == 2){
+        umbTempLow = atoi(valIngresado);
         tempFlag = false;
         indiceVal = 0;
+        EEPROM.put(posMemory, umbTempLow);
       }
     } 
   }
@@ -579,20 +591,20 @@ void OpcionUmbLuzHigh() {// funcion que establese el umbral de luz
   if (LuzMemory != NULL) {
     umbLuzHigh = LuzMemory;
   }
-  char customKey = keypad.getKey();
   bool tempFlag = true;
   lcd.setCursor(0, 1);
   while(tempFlag) {
+    char customKey = keypad.getKey();
     if (customKey){
-      valIngresado[indice]=customKey;
+      valIngresado[indiceVal]=customKey;
       Serial.println(customKey);
       lcd.print(customKey);
       indiceVal++;
-      if (indiceVal == 1){
-        sscanf(valIngresado, "%d", &numero);
-        umbLuzHigh = numero;
+      if (indiceVal == 3){
+        umbTempHigh = atoi(valIngresado);
         tempFlag = false;
         indiceVal = 0;
+        EEPROM.put(posMemory, umbTempHigh);
       }
     } 
   }
@@ -605,20 +617,20 @@ void OpcionUmbLuzLow() {
   if (LuzMemory != NULL) {
     umbLuzLow = LuzMemory;
   }
-  char customKey = keypad.getKey();
   bool tempFlag = true;
   lcd.setCursor(0, 1);
   while(tempFlag) {
+    char customKey = keypad.getKey();
     if (customKey){
-      valIngresado[indice]=customKey;
+      valIngresado[indiceVal]=customKey;
       Serial.println(customKey);
       lcd.print(customKey);
       indiceVal++;
-      if (indiceVal == 1){
-        sscanf(valIngresado, "%d", &numero);
-        umbLuzLow = numero;
+      if (indiceVal == 2){
+        umbTempLow = atoi(valIngresado);
         tempFlag = false;
         indiceVal = 0;
+        EEPROM.put(posMemory, umbLuzLow);
       }
     } 
   }
@@ -645,7 +657,7 @@ void OpcionReset(){
 
 //Estado de monitoreo
 void start_monitoreo(){
-     leer_Eprom();
+  leer_Eprom();
 }
 
 void funcion_monitoreo() {
@@ -656,19 +668,25 @@ void funcion_monitoreo() {
   // se actualizan las tareas asincronas
   asyncTaskTemp.Update();
   asyncTaskPhoto.Update();
-  Serial.println(temp_value);
-  Serial.println(photo_value);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Temp:");
+  lcd.print(temperatura);
+  lcd.setCursor(0, 1);
+  lcd.print("Luz:");
+  lcd.print(photo_value);
+  delay(1000);
   // seleccion de funciones segun temperatura
-  if (temp_value <= umbTempHigh) {
+  if (temperatura >= umbTempHigh) {
     currentInput = Input::forward;
   }
-  if (temp_value <= umbTempLow) {
+  if (temperatura <= umbTempLow) {
     currentInput = Input::forward;
   }
-  if (temp_value <= umbLuzHigh) {
+  if (photo_value >= umbLuzHigh) {
     currentInput = Input::forward;
   }
-  if (temp_value <= umbLuzLow) {
+  if (photo_value <= umbLuzLow) {
     currentInput = Input::forward;
   }
 }
@@ -699,29 +717,28 @@ void leer_Eprom() {
 
 //Estado de alarma
 void Alarma() {
-  digitalWrite(LED_RED, LOW);
-  digitalWrite(LED_BLUE, LOW);
-  digitalWrite(LED_GREEN, LOW); // led en azul
   digitalWrite(LED_RED, HIGH);
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Alarma - Umbral");
+  lcd.print("Alarma Umbral");
   lcd.setCursor(0, 1);
-  lcd.print("Superado"); // se imprime en pantalla el indicador de estado
-  sonar_buzz(); // se hace sonar el buzzer en señal de alarma
+  lcd.print("Superado");
+  sonar_buzz();
   delay(3000);
+  digitalWrite(LED_RED, LOW);
   tiempo = millis(); // se da tiempo de espera de alarma
-  while (millis() < tiempo + 2000UL) {// crea un retardo para la duracion del estado ***********
+  while (millis() < tiempo + 2000UL) {
     currentInput = Input::forward;
   }
 }
 
-void sonar_buzz() { // funcion encargada de hacer sonar el buzzer
-  for (int i = 0; i < 3; i++) {      // bucle repite 4 veces, 1 por cada nota
-    int duracion = 1000 / duraciones[i];    // duracion de la nota en milisegundos
-    tone(pin_buzz, melodia[i], duracion);  // ejecuta el tono con la duracion
-    int pausa = duracion * 1.30;      // calcula pausa
-    delay(pausa);         // demora con valor de pausa
-    noTone(pin_buzz);        // detiene reproduccion de tono
+//Funcion encargada de hacer sonar el buzzer
+void sonar_buzz() {
+  for (int i = 0; i < 3; i++) {
+    int duracion = 1000 / duraciones[i];
+    tone(pin_buzz, melodia[i], duracion);
+    int pausa = duracion * 1.30;
+    delay(pausa);
+    noTone(pin_buzz);
   }
 }
